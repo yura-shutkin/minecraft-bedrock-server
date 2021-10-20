@@ -1,0 +1,61 @@
+---
+version: '2.4'
+
+x-logging-json: &logging-json
+  logging:
+    driver: json-file
+    options:
+      max-file: "1"
+      max-size: "50M"
+      labels: group,com.docker.compose.service,env,instance
+
+x-project-labels: &project-labels
+  labels:
+    env: ${STAGE}
+    group: ${COMPOSE_PROJECT_NAME}
+    instance: ${INSTANCE}
+
+x-minecraft-server-proto: &minecraft-server-proto
+  image: ${DOCKER_REGISTRY_URL}minecraft_bedrock:${MINECRAFT_VERSION}
+  build:
+    context: ./bedrock
+    dockerfile: Dockerfile
+    args:
+      MINECRAFT_VERSION: ${MINECRAFT_VERSION}
+  cap_drop:
+    - ALL
+  cap_add:
+    - FOWNER
+    - SETGID
+    - SETUID
+    - DAC_READ_SEARCH
+  working_dir: /minecraft
+  environment:
+    - "LD_LIBRARY_PATH=."
+
+services:
+  server:
+    <<: *logging-json
+    <<: *project-labels
+    <<: *minecraft-server-proto
+    volumes:
+      - data:/minecraft/worlds
+      - /opt/bedrock/configs/server.properties:/minecraft/server.properties:ro
+      - /opt/bedrock/configs/permissions.json:/minecraft/permissions.json:ro
+      - /opt/bedrock/configs/valid_known_packs.json:/minecraft/valid_known_packs.json:ro
+      - /opt/bedrock/configs/whitelist.json:/minecraft/whitelist.json:ro
+    ports:
+      - "${SERVER_IP}:${SERVER_EXT_PORT}:${SERVER_INT_PORT}/udp"
+    networks:
+      default:
+
+volumes:
+  data:
+    driver: local
+    driver_opts:
+      type: 'none'
+      o: 'bind'
+      device: /opt/bedrock/worlds
+
+networks:
+  default:
